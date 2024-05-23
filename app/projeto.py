@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import datetime 
 
 
-
+dwadadw
 #carregando as variáveis de ambiente
 load_dotenv()
 
