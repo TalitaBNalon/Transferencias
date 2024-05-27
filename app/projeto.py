@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 import datetime 
 
 
-dwadadw
+
+
 #carregando as variáveis de ambiente
 load_dotenv()
 
@@ -22,13 +23,6 @@ db = client['bank']
 
 #criando um servidor para flask
 app = Flask(__name__)
-
-
-
-
-
-
-
 
 # Método GET
 @app.route("/bank", methods=["GET"])
@@ -61,22 +55,31 @@ def read():
 @app.route("/bank", methods=["POST"])
 def create():
     try:
-        data = request.json
-        id = data.get('id')
-        cpf = data.get('cpf')
-        email = data.get('email')
+        # Definindo valores fixos
+        id = 4
+        cpf = "238.686.785-70"
+        email = "olivia.domingues@germinare.org.br"
+        balance = 5000
+        type_user = "cliente"
+        full_name = "Olivia Farias"
 
-
-        # verificando se todos os campos obrigatórios estão presentes
+        # Verificando se todos os campos obrigatórios estão presentes
         if not all([id, cpf, email]):
             return jsonify({"Erro": "Os campos cpf, email, e id precisam obrigatoriamente serem preenchidos"}), 400
 
-        # verificando se já existe um usuário com o mesmo cpf, email ou id
+        # Verificando se já existe um usuário com o mesmo cpf, email ou id
         if db.collection.find_one({'$or': [{'cpf': cpf}, {'email': email}, {'id': id}]}):
             return jsonify({"Erro": "O cliente já existe"}), 400
 
-        # inserindo o novo usuário
-        db.collection.insert_one(data)
+        # Inserindo o novo usuário
+        db.collection.insert_one({
+            "id": id,
+            "cpf": cpf,
+            "email": email,
+            "balance": balance,
+            "type_user": type_user,
+            "full_name": full_name
+        })
         return jsonify({"Status": "Cliente inserido com sucesso!"}), 201
 
     except Exception as e:
@@ -85,34 +88,6 @@ def create():
 
 
 
-
-def email_transfer(value, payer, payee):
-    
-    pythoncom.CoInitialize()
-    outlook = win32.Dispatch('outlook.application')
-    email = outlook.CreateItem(0)
-
-    nome_payer = payer.get('full_name')
-    nome_payee = payee.get('full_name')
-    email_payer = payer.get('email')
-    email_payee = payee.get('email')
-
-    email.To = email_payee + "; " + email_payer
-    email.Subject = "Transferencia ocorrida PICPAY"
-    email.HTMLBody = f"""
-    <center><h2>Resumo da transferencia</h2></center>
-    <hr></hr>
-
-    <center><h1 style="color: #00A000"><strong>R${value}</strong></h1></center>
-    <center><div style="display: inline-block">
-        <p>Nome do remetente: <strong>{nome_payer}</strong></p>
-        <p>Nome do destinatario: <strong>{nome_payee}</strong></p>
-    </div></center>
-    <hr></hr>
-    <p><strong>Ass:</strong> Picpay de python ❇️</p>
-    """
-
-    email.Send()
 
 
 
@@ -130,6 +105,9 @@ def transfer_money():
         # Verifica se os campos obrigatórios estão presentes
         if not all([value, id_payer, id_payee]):
             return jsonify({"Erro": "Valor, pagador e recebedor são obrigatórios!"}), 400
+        
+        if not validation_antifraud(id_payee, id_payer):
+            return jsonify({"Erro": "Aviso fraude detectada"}), 403
 
         # Verifica se os IDs do pagador e recebedor são diferentes
         if id_payer == id_payee:
@@ -159,13 +137,55 @@ def transfer_money():
         db.collection.update_one({"id": id_payer}, {"$set": {"balance": new_payer_balance}})
         db.collection.update_one({"id": id_payee}, {"$set": {"balance": new_payee_balance}})
 
+
+
         # Envia email de confirmação
         email_transfer(value, payer, payee)
 
+        
         return jsonify({"Status": "Transferência realizada com sucesso!"}), 200
 
     except Exception as e:
         return jsonify({"Erro do Servidor Interno": str(e)}), 500
+    
+
+
+import pythoncom
+import win32com.client as win32
+
+def email_transfer(value, payer, payee):
+    try:
+        pythoncom.CoInitialize()
+        outlook = win32.Dispatch('outlook.application')
+        email = outlook.CreateItem(0)
+
+        nome_payer = payer.get('full_name')
+        nome_payee = payee.get('full_name')
+        email_payer = payer.get('email')
+        email_payee = payee.get('email')
+
+        email.To = email_payee + "; " + email_payer
+        email.Subject = "Transferencia ocorrida PICPAY"
+        email.HTMLBody = f"""
+        <center><h2>Resumo da transferencia</h2></center>
+        <hr></hr>
+
+        <center><h1 style="color: #00A000"><strong>R${value}</strong></h1></center>
+        <center><div style="display: inline-block">
+            <p>Nome do remetente: <strong>{nome_payer}</strong></p>
+            <p>Nome do destinatario: <strong>{nome_payee}</strong></p>
+        </div></center>
+        <hr></hr>
+        <p><strong>Ass:</strong> Picpay de python ❇️</p>
+        """
+
+        email.Send()
+    except Exception as e:
+        print(f"Falha ao enviar email: {str(e)}")
+
+def validation_antifraud(id_payee, id_payer):
+    return True
+
 
     
 
@@ -175,11 +195,11 @@ if __name__ == "__main__":
 
 
 
-        # registrando a transação
+       # registrando a transação
         #transaction = {
         #    "value": value,
         #    "payer": id_payer,
         #    "payee": id_payee,
         #    "timestamp": datetime.datetime.utcnow()
         #}
-        #db['transactions'].insert_one(transaction)
+        #db['transactions'].insert_one(transaction) 
